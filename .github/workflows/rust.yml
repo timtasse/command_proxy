@@ -11,8 +11,8 @@ env:
   GH_TOKEN: ${{ github.token }}
 
 permissions:
-  id-token: write
   contents: read
+  packages: write
 
 jobs:
   build:
