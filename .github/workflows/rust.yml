@@ -24,8 +24,11 @@ jobs:
       run: cargo build --verbose -r
     - name: Run tests
       run: cargo test --verbose -r
+    - name: get cargo manifest
+      id: cargo_manifest
+      run: cargo read-manifest >> $GITHUB_OUTPUT
+    - name: get version
+      run: echo ${{ fromJSON(steps.cargo_manifest.outputs).version }}
     - name: Publish built binary to GitHub releases
       run: |
         gh release create --generate-notes ./target/release/command-proxy
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
