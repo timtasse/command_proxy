@@ -26,7 +26,9 @@ jobs:
       run: cargo test --verbose -r
     - name: get cargo manifest
       id: prog_version
-      run: echo version=$(cargo read-manifest | jq .version) >> $GITHUB_OUTPUT
+      run: echo version=$(cargo read-manifest | jq .version -r) >> $GITHUB_OUTPUT
     - name: Publish built binary to GitHub releases
       run: |
         gh release create ${{ steps.prog_version.outputs.version }} --generate-notes ./target/release/command-proxy
+      env:
+        GH_TOKEN: ${{ github.token }}
