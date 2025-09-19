@@ -26,7 +26,7 @@ jobs:
       run: cargo test --verbose -r
     - name: get cargo manifest
       id: cargo_manifest
-      run: cargo read-manifest >> $GITHUB_OUTPUT
+      run: echo ${{ fromJSON(`cargo read-manifest`) }} >> $GITHUB_OUTPUT
     - name: get version
       run: echo ${{ fromJSON(steps.cargo_manifest.outputs).version }}
     - name: Publish built binary to GitHub releases
