@@ -12,12 +12,20 @@ use actix_web::web::Data;
 use actix_web::{App, Error, HttpServer};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use clap::Parser;
 use log::{warn, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Root};
 use log4rs::Config;
 use std::io;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub struct Cli {
+    #[arg(short = 'c', long)]
+    pub(crate) config: String,
+}
 
 async fn validator(
     req: ServiceRequest,
@@ -33,7 +41,8 @@ async fn validator(
 
 #[actix_rt::main]
 async fn main() -> io::Result<()> {
-    let settings = CompleteSettings::parse_toml("config.toml")
+    let cli = Cli::parse();
+    let settings = CompleteSettings::parse_toml(cli.config)
         .expect("Failed to parse `Settings` from config.toml");
 
     init_logger(&settings);
