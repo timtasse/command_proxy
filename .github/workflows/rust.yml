@@ -12,7 +12,6 @@ env:
 permissions:
   contents: write
   packages: write
-  workflows: write
 
 jobs:
   build:
