@@ -2,6 +2,7 @@
 extern crate actix_web;
 mod command;
 mod config;
+mod copy;
 
 use crate::config::CompleteSettings;
 use actix_settings::{ApplySettings, Mode};
@@ -13,12 +14,14 @@ use actix_web::{App, Error, HttpServer};
 use actix_web_httpauth::extractors::bearer::BearerAuth;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::Parser;
-use log::{warn, LevelFilter};
+use log::{error, warn, LevelFilter};
 use log4rs::append::console::ConsoleAppender;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Root};
 use log4rs::Config;
 use std::io;
+use std::path::Path;
+use std::process::exit;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -47,6 +50,11 @@ async fn main() -> io::Result<()> {
 
     init_logger(&settings);
 
+    if !Path::new(&settings.application.upload_path).is_dir() {
+        error!("upload path does not exist or is not a directory");
+        exit(1);
+    }
+
     HttpServer::new({
         // clone settings into each worker thread
         let settings = settings.clone();
@@ -60,6 +68,7 @@ async fn main() -> io::Result<()> {
                 .app_data(Data::new(settings.clone()))
                 // register HTTP requests handlers
                 .service(command::exec)
+                .service(copy::file_copy)
         }
     })
     .try_apply_settings(&settings)?

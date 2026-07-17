@@ -8,5 +8,6 @@ pub type CompleteSettings = BasicSettings<Config>;
 pub struct Config {
     pub(crate) auth: String,
     pub(crate) logfile: String,
+    pub(crate) upload_path: String,
     pub(crate) commands: Table,
 }
