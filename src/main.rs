@@ -69,6 +69,7 @@ async fn main() -> io::Result<()> {
                 // register HTTP requests handlers
                 .service(command::exec)
                 .service(copy::file_copy)
+                .service(copy::file_delete)
         }
     })
     .try_apply_settings(&settings)?

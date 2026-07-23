@@ -1,13 +1,13 @@
-use std::fs::File;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
+use crate::config::CompleteSettings;
 use actix_web::web::{Data, Json};
 use actix_web::HttpResponse;
-use log::{debug, error};
-use base64::read::DecoderReader;
 use base64::engine::general_purpose::STANDARD;
-use crate::config::CompleteSettings;
+use base64::read::DecoderReader;
+use log::{debug, error};
+use serde::{Deserialize, Serialize};
+use std::fs::{remove_file, File};
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FileCopyRequest {
@@ -16,22 +16,37 @@ pub struct FileCopyRequest {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct FileDeleteRequest {
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct FileCopyResult {
     pub path: String,
     pub size: usize,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct FileDeleteResult {
+    pub path: String,
+    pub success: bool,
+}
+
 impl FileCopyResult {
     fn new(final_path: PathBuf, size: usize) -> Self {
         let path = final_path.display().to_string();
-        Self {
-            size,
-            path
-        }
+        Self { size, path }
     }
 }
 
-#[post("/copy")]
+impl FileDeleteResult {
+    fn new(final_path: PathBuf, success: bool) -> Self {
+        let path = final_path.display().to_string();
+        Self { path, success }
+    }
+}
+
+#[post("/file")]
 pub async fn file_copy(
     copy_req: Json<FileCopyRequest>,
     config: Data<CompleteSettings>,
@@ -46,7 +61,7 @@ pub async fn file_copy(
             .finish();
     }
     let final_path;
-    match check_path(&copy_req, &config) {
+    match check_path(&copy_req.path, &config) {
         Ok(path) => {
             final_path = path;
         }
@@ -74,13 +89,46 @@ pub async fn file_copy(
             ))
             .finish();
     }
+    debug!("Successfully wrote {}", final_path.display());
     HttpResponse::Ok().json(FileCopyResult::new(final_path, write_result.unwrap()))
 }
 
-fn check_path(
-    copy_req: &Json<FileCopyRequest>,
-    config: &CompleteSettings,
-) -> Result<PathBuf, HttpResponse> {
+#[delete("/file")]
+pub async fn file_delete(
+    delete_req: Json<FileDeleteRequest>,
+    config: Data<CompleteSettings>,
+) -> HttpResponse {
+    let final_path;
+    match check_path(&delete_req.path, &config) {
+        Ok(path) => {
+            final_path = path;
+        }
+        Err(response) => {
+            return response;
+        }
+    }
+    if !final_path.exists() {
+        debug!("file not exists: {}", final_path.display());
+        return HttpResponse::Ok().json(FileDeleteResult::new(final_path, true));
+    }
+    match remove_file(&final_path) {
+        Ok(_) => {
+            debug!("file successfully deleted: {}", final_path.display());
+            HttpResponse::Ok().json(FileDeleteResult::new(final_path, true))
+        }
+        Err(error) => {
+            error!("File delete error: {}", error);
+            HttpResponse::Forbidden()
+                .append_header((
+                    "x-error",
+                    "file cannot be deleted: ".to_owned() + error.to_string().as_str(),
+                ))
+                .json(FileDeleteResult::new(final_path, false))
+        }
+    }
+}
+
+fn check_path(path_string: &String, config: &CompleteSettings) -> Result<PathBuf, HttpResponse> {
     let upload_path = Path::new(&config.application.upload_path);
     if !upload_path.exists() || !upload_path.is_dir() {
         error!("upload path not exists: {}", upload_path.display());
@@ -88,7 +136,7 @@ fn check_path(
             .append_header(("x-error", "configured upload path not exists"))
             .finish());
     }
-    let file_path_complete = upload_path.join(copy_req.path.as_str());
+    let file_path_complete = upload_path.join(path_string);
     debug!("given path: {}", file_path_complete.display());
     let file_path_parent = file_path_complete
         .parent()
@@ -108,13 +156,19 @@ fn check_path(
             .finish());
     }
     if !file_path_parent.as_ref().unwrap().is_dir() {
-        error!("path not exist: {}", file_path_parent.as_ref().unwrap().display());
+        error!(
+            "path not exist: {}",
+            file_path_parent.as_ref().unwrap().display()
+        );
         return Err(HttpResponse::Forbidden()
             .append_header(("x-error", "path not exist"))
             .finish());
     }
     if !file_path_parent.as_ref().unwrap().starts_with(upload_path) {
-        error!("path outside of upload path: {}", file_path_parent.as_ref().unwrap().display());
+        error!(
+            "path outside of upload path: {}",
+            file_path_parent.as_ref().unwrap().display()
+        );
         return Err(HttpResponse::Forbidden()
             .append_header(("x-error", "path outside upload path"))
             .finish());
